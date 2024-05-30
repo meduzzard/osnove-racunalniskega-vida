@@ -1,13 +1,28 @@
 import cv2
 import numpy as np
+import os
 
-import cv2
+# Ustvari mapo za shranjevanje obrazov, če ne obstaja
+if not os.path.exists('captured_faces'):
+    os.makedirs('captured_faces')
 
 # Inicializiramo kamero
 cap = cv2.VideoCapture(0)
 
 # Naložimo Haar Cascade za detekcijo obraza
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+
+
+# Funkcija za odstranjevanje šuma, pretvorbo v barvne modele in linearizacijo sivin
+def preprocess_face(face):
+    # Odstranjevanje šuma z Gaussian Blur
+    face = cv2.GaussianBlur(face, (5, 5), 0)
+    # Linearizacija sivin (uporaba prilagoditve kontrasta)
+    face = cv2.equalizeHist(face)
+    return face
+
+
+image_counter = 0
 
 while True:
     # Preberemo frame iz kamere
@@ -31,10 +46,15 @@ while True:
     # Shrani obraz, ko pritisnemo 's'
     if cv2.waitKey(1) & 0xFF == ord('s'):
         if len(faces) > 0:
-            (x, y, w, h) = faces[0]
-            face = gray[y:y + h, x:x + w]
-            cv2.imwrite('captured_face.jpg', face)
-            print("Obraz shranjen kot captured_face.jpg")
+            for (x, y, w, h) in faces:
+                face = gray[y:y + h, x:x + w]
+                preprocessed_face = preprocess_face(face)
+                face_path = f'captured_faces/face_{image_counter}.jpg'
+                cv2.imwrite(face_path, preprocessed_face)
+                print(f"Obraz shranjen kot {face_path}")
+
+
+                image_counter += 1
 
     # Izstopi, ko pritisnemo 'q'
     elif cv2.waitKey(1) & 0xFF == ord('q'):
