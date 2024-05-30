@@ -134,3 +134,11 @@ def load_data(data_dir):
         class_mode='sparse'
     )
     return train_generator
+
+data_dir = 'captured_faces'
+train_data = load_data(data_dir)
+
+input_shape = (128, 128, 3)
+model = create_model(input_shape)
+model.fit(train_data, epochs=10)
+model.save('face_recognition_model.h5')
