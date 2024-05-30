@@ -13,7 +13,6 @@ cap = cv2.VideoCapture(0)
 # Load the Haar Cascade for face detection
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
-
 # Function for noise removal, color space conversion, and histogram equalization
 def preprocess_face(face):
     # Noise removal with Gaussian Blur
@@ -110,3 +109,17 @@ while time.time() - start_time < record_duration:
 # Release the camera and close all windows
 cap.release()
 cv2.destroyAllWindows()
+
+# Define the model
+def create_model(input_shape):
+    model = models.Sequential()
+    model.add(layers.Conv2D(32, (3, 3), activation='relu', input_shape=input_shape))
+    model.add(layers.MaxPooling2D((2, 2)))
+    model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+    model.add(layers.MaxPooling2D((2, 2)))
+    model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+    model.add(layers.Flatten())
+    model.add(layers.Dense(64, activation='relu'))
+    model.add(layers.Dense(10, activation='softmax'))
+    model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+    return model
