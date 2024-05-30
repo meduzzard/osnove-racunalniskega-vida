@@ -1,13 +1,18 @@
+import os
 import cv2
 import numpy as np
-import os
 import time
 from tensorflow.keras import layers, models
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
+import tensorflow as tf
+
+# Determine the root directory of the project
+root_dir = os.path.dirname(os.path.abspath(__file__))
 
 # Directories for datasets
-user_faces_dir = 'captured_faces/user'
-public_faces_dir = 'captured_faces/public'
+user_faces_dir = os.path.join(root_dir, 'captured_faces', 'user')
+public_faces_dir = os.path.join(root_dir, 'captured_faces', 'public')
+lfw_dir = os.path.join(root_dir, 'lfw')
 
 # Create directories if they don't exist
 os.makedirs(user_faces_dir, exist_ok=True)
@@ -97,8 +102,8 @@ def record_user_faces(duration=5):
 cap.release()
 cv2.destroyAllWindows()
 
-# Process the public dataset
-process_public_dataset(public_faces_dir)
+# Process the LFW dataset
+process_public_dataset(lfw_dir)
 
 # Record user faces
 record_user_faces()
@@ -136,8 +141,8 @@ def load_data(user_dir, public_dir):
     )
     return user_generator, public_generator
 
-user_data_dir = 'captured_faces/user'
-public_data_dir = 'captured_faces/public'
+user_data_dir = os.path.join(root_dir, 'captured_faces', 'user')
+public_data_dir = os.path.join(root_dir, 'captured_faces', 'public')
 user_data, public_data = load_data(user_data_dir, public_data_dir)
 
 # Combine user and public data
