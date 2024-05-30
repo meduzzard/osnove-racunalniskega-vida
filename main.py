@@ -1,6 +1,6 @@
-import os
 import cv2
 import numpy as np
+import os
 import time
 from tensorflow.keras import layers, models
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
@@ -152,3 +152,36 @@ input_shape = (128, 128, 1)
 model = create_model(input_shape)
 model.fit(combined_data, epochs=10)
 model.save('face_recognition_model.h5')
+
+# Load the trained model
+model = tf.keras.models.load_model('face_recognition_model.h5')
+
+# Capture a new image from the camera for prediction
+def capture_image_for_prediction():
+    cap = cv2.VideoCapture(0)
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+        for (x, y, w, h) in faces:
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
+            face = gray[y:y + h, x:x + w]
+            preprocessed_face = preprocess_face(face)
+            resized_face = cv2.resize(preprocessed_face, (128, 128))
+            reshaped_face = resized_face.reshape(1, 128, 128, 1) / 255.0
+            prediction = model.predict(reshaped_face)
+            if prediction > 0.5:
+                label = 'User'
+            else:
+                label = 'Not User'
+            cv2.putText(frame, label, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
+        cv2.imshow('Prediction', frame)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+    cap.release()
+    cv2.destroyAllWindows()
+
+# Capture and predict
+capture_image_for_prediction()
