@@ -123,3 +123,14 @@ def create_model(input_shape):
     model.add(layers.Dense(10, activation='softmax'))
     model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
     return model
+
+# Load and preprocess data
+def load_data(data_dir):
+    datagen = ImageDataGenerator(rescale=1./255)
+    train_generator = datagen.flow_from_directory(
+        data_dir,
+        target_size=(128, 128),
+        batch_size=32,
+        class_mode='sparse'
+    )
+    return train_generator
