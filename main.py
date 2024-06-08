@@ -8,12 +8,12 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.callbacks import TensorBoard, EarlyStopping
 from matplotlib import pyplot as plt
 
-# Get the user ID and image paths from the command-line arguments
-user_id = sys.argv[-1]
+# Get the username and image paths from the command-line arguments
+username = sys.argv[-1]
 image_paths = sys.argv[1:-1]
 
 # Directory for user faces dataset
-user_faces_dir = os.path.join('captured_faces', user_id)
+user_faces_dir = os.path.join('captured_faces', username)
 os.makedirs(user_faces_dir, exist_ok=True)
 
 # Save the images to the user's directory
@@ -22,7 +22,6 @@ for image_path in image_paths:
     new_image_path = os.path.join(user_faces_dir, os.path.basename(image_path))
     cv2.imwrite(new_image_path, image)
 
-# The rest of your code to preprocess the images, train the model, and save the model
 # Define the model
 def create_model(input_shape):
     model = models.Sequential()
@@ -80,7 +79,7 @@ def load_data(user_dir, lfw_dir):
     return combined_data, user_generator.samples + lfw_generator.samples, user_generator.batch_size
 
 
-user_data_dir = os.path.join('captured_faces', user_id)
+user_data_dir = os.path.join('captured_faces', username)
 lfw_data_dir = 'lfw'  # Change this to your actual directory
 combined_data, samples, batch_size = load_data(user_data_dir, lfw_data_dir)
 
@@ -106,7 +105,7 @@ history = model.fit(
 )
 
 # Save the model
-model_path = os.path.join('models', f'face_recognition_model_{user_id}.h5')
+model_path = os.path.join('models', f'{username}_model.h5')
 model.save(model_path)
 
 # Plot the training history
