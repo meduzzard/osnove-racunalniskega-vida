@@ -53,7 +53,7 @@ jobs:
 
     - name: Build Docker image
       run: |
-        cd D:\FERI\Projekti\osnove_racunalniskega_vida
+        cd /home/runner/work/osnove_racunalniskega_vida/osnove_racunalniskega_vida
         docker build -f Dockerfile_tests -t ***osnove-racunalniskega-vida:latest .
 
     - name: Log in to DockerHub
