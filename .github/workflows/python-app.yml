@@ -65,4 +65,3 @@ jobs:
     - name: Push Docker images
       run: |
         docker push meduzzard/osnove-racunalniskega-vida-tests:latest
-        docker push meduzzard/osnove-racunalniskega-vida-kontejner:latest
