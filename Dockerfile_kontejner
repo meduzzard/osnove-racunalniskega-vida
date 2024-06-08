@@ -1,0 +1,16 @@
+# Dockerfile za izdelavo Docker kontejnerja
+
+# Uporabi uradni Python Docker image kot osnovo
+FROM python:3.8-slim
+
+# Nastavi delovno mapo v kontejnerju
+WORKDIR /app
+
+# Kopiraj zahtevane datoteke (npr. kodo, zahtevane knjižnice) v kontejner
+COPY . .
+
+# Namesti zahtevane knjižnice
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Nastavi ukaz, ki se izvede, ko se kontejner zažene
+CMD ["python", "main.py"]
