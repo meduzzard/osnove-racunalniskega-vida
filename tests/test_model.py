@@ -1,8 +1,7 @@
 import unittest
+import pymongo
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 import numpy as np
-from pymongo import MongoClient
-import os
 
 class TestDataAugmentation(unittest.TestCase):
 
@@ -32,23 +31,22 @@ class TestDataAugmentation(unittest.TestCase):
 class TestMongoDBConnection(unittest.TestCase):
 
     def setUp(self):
-        # Pridobite MongoDB URL iz okoljske spremenljivke ali uporabite privzeto vrednost
-        self.mongo_url = os.getenv('MONGO_URL', 'mongodb://localhost:27017')
-        self.client = MongoClient(self.mongo_url)
-        self.db = self.client['pametni-paketnik']
-        self.users_collection = self.db['users']
+        # Povezava z MongoDB
+        self.client = pymongo.MongoClient("mongodb://localhost:27017/")
+        self.db = self.client["testdb"]
+        self.collection = self.db["users"]
+
+        # Ustvarimo testnega uporabnika
+        self.test_user = {"username": "testuser", "email": "testuser@example.com"}
+        self.collection.insert_one(self.test_user)
 
     def tearDown(self):
-        # Zaprite povezavo s podatkovno bazo
+        # Počistimo podatkovno bazo po vsakem testu
+        self.collection.delete_many({})
         self.client.close()
 
-    def test_connection(self):
-        # Preverite, ali je povezava vzpostavljena
-        self.assertTrue(self.client is not None)
-
     def test_find_user(self):
-        # Preverite, ali lahko najdete uporabnika (če obstaja)
-        user = self.users_collection.find_one()
+        user = self.collection.find_one({"username": "testuser"})
         self.assertTrue(user is not None)
 
 if __name__ == '__main__':
