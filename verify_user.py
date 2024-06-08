@@ -5,6 +5,9 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import load_model
 
+# Set default encoding to UTF-8
+sys.stdout.reconfigure(encoding='utf-8')
+
 # Get the image path from the command-line arguments
 image_path = sys.argv[1]
 user_id = sys.argv[2]
@@ -29,11 +32,17 @@ preprocessed_image = preprocess_image(image_path)
 
 # Make prediction
 prediction = model.predict(preprocessed_image)
-print(f'Prediction: {prediction}')
+prediction_value = prediction[0][0]  # Assuming the model returns a single value
+
+# Print the prediction value
+print(f'Prediction: {prediction_value}')
 
 # Define a threshold for classification
-threshold = 0.5
-if prediction >= threshold:
-    print(f'User {user_id} verified successfully.')
+threshold = 0.0
+if prediction_value >= threshold:
+    verification_message = f'User {user_id} verified successfully.'
 else:
-    print(f'User {user_id} verification failed.')
+    verification_message = f'User {user_id} verification failed.'
+
+# Print the verification message
+print(verification_message.encode('utf-8').decode('utf-8'))

@@ -54,6 +54,13 @@ except ImportError:
     install_package('matplotlib')
     from matplotlib import pyplot as plt
 
+# Ensure scipy is installed and imported
+try:
+    import scipy
+except ImportError:
+    install_package('scipy')
+    import scipy
+
 # Get the username and image paths from the command-line arguments
 username = sys.argv[-1]
 image_paths = sys.argv[1:-1]
@@ -103,7 +110,16 @@ def load_data(user_dir, lfw_dir):
     if not os.path.exists(lfw_dir):
         raise FileNotFoundError(f"The specified lfw directory does not exist: {lfw_dir}")
 
-    datagen = ImageDataGenerator(rescale=1. / 255)
+    datagen = ImageDataGenerator(
+        rescale=1. / 255,
+        rotation_range=2,  # Reduced value
+        width_shift_range=0.02,  # Reduced value
+        height_shift_range=0.02,  # Reduced value
+        shear_range=0.02,  # Reduced value
+        zoom_range=0.02,  # Reduced value
+        horizontal_flip=True,
+        fill_mode='nearest'
+    )
 
     # Use the user directory without an extra subfolder
     user_generator = datagen.flow_from_directory(
@@ -195,4 +211,78 @@ plt.plot(history.history['val_accuracy'], label='val_accuracy')
 plt.xlabel('Epoch')
 plt.ylabel('Accuracy')
 plt.legend()
+plt.show()
+
+# Augmentation and display settings
+num_augmented_images = 5  # Number of augmented images to save for each dataset
+output_dir = 'augmented_images'
+os.makedirs(output_dir, exist_ok=True)
+
+# Initialize ImageDataGenerator for augmentation with reduced values
+datagen = ImageDataGenerator(
+    rotation_range=2,  # Reduced value
+    width_shift_range=0.02,  # Reduced value
+    height_shift_range=0.02,  # Reduced value
+    shear_range=0.02,  # Reduced value
+    zoom_range=0.02,  # Reduced value
+    horizontal_flip=True,
+    fill_mode='nearest'
+)
+
+# Load and augment user images
+user_images = []
+for image_file in os.listdir(user_faces_dir):
+    image_path = os.path.join(user_faces_dir, image_file)
+    image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+    if image is None:
+        print(f"Error loading image: {image_path}")
+        continue
+    image = cv2.resize(image, (128, 128))
+    user_images.append(image)
+
+user_images = np.array(user_images).reshape(-1, 128, 128, 1)
+i = 0
+for batch in datagen.flow(user_images, batch_size=1, save_to_dir=output_dir, save_prefix='user', save_format='png'):
+    i += 1
+    if i >= num_augmented_images:
+        break
+
+# Load and augment LFW images
+lfw_images = []
+for subdir, _, files in os.walk(lfw_data_dir):
+    for file in files:
+        image_path = os.path.join(subdir, file)
+        image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+        if image is None:
+            print(f"Error loading image: {image_path}")
+            continue
+        image = cv2.resize(image, (128, 128))
+        lfw_images.append(image)
+
+lfw_images = np.array(lfw_images).reshape(-1, 128, 128, 1)
+i = 0
+for batch in datagen.flow(lfw_images, batch_size=1, save_to_dir=output_dir, save_prefix='lfw', save_format='png'):
+    i += 1
+    if i >= num_augmented_images:
+        break
+
+print(f"Saved augmented images to {output_dir}")
+
+# Load augmented images for visualization
+augmented_user_images = [cv2.imread(os.path.join(output_dir, f'user_{i}.png'), cv2.IMREAD_GRAYSCALE) for i in range(num_augmented_images)]
+augmented_lfw_images = [cv2.imread(os.path.join(output_dir, f'lfw_{i}.png'), cv2.IMREAD_GRAYSCALE) for i in range(num_augmented_images)]
+
+# Display augmented images using matplotlib
+fig, axes = plt.subplots(2, num_augmented_images, figsize=(15, 6))
+fig.suptitle('Augmented Images')
+
+for i in range(num_augmented_images):
+    axes[0, i].imshow(augmented_user_images[i], cmap='gray')
+    axes[0, i].axis('off')
+    axes[0, i].set_title(f'User Image {i + 1}')
+
+    axes[1, i].imshow(augmented_lfw_images[i], cmap='gray')
+    axes[1, i].axis('off')
+    axes[1, i].set_title(f'LFW Image {i + 1}')
+
 plt.show()
