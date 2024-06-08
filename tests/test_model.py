@@ -1,6 +1,8 @@
 import unittest
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 import numpy as np
+from pymongo import MongoClient
+import os
 
 class TestDataAugmentation(unittest.TestCase):
 
@@ -26,6 +28,28 @@ class TestDataAugmentation(unittest.TestCase):
         for i in range(5):
             augmented_image = augmented_images.next()
             self.assertEqual(augmented_image.shape, (1, 128, 128, 1))
+
+class TestMongoDBConnection(unittest.TestCase):
+
+    def setUp(self):
+        # Pridobite MongoDB URL iz okoljske spremenljivke ali uporabite privzeto vrednost
+        self.mongo_url = os.getenv('MONGO_URL', 'mongodb://localhost:27017')
+        self.client = MongoClient(self.mongo_url)
+        self.db = self.client['pametni-paketnik']
+        self.users_collection = self.db['users']
+
+    def tearDown(self):
+        # Zaprite povezavo s podatkovno bazo
+        self.client.close()
+
+    def test_connection(self):
+        # Preverite, ali je povezava vzpostavljena
+        self.assertTrue(self.client is not None)
+
+    def test_find_user(self):
+        # Preverite, ali lahko najdete uporabnika (če obstaja)
+        user = self.users_collection.find_one()
+        self.assertTrue(user is not None)
 
 if __name__ == '__main__':
     unittest.main()
