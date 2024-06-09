@@ -1,112 +1,288 @@
-import cv2
-import numpy as np
+import sys
 import os
-import time
+import subprocess
+import locale
 
-# Create a directory to save captured faces if it doesn't exist
-if not os.path.exists('captured_faces'):
-    os.makedirs('captured_faces')
+# Set the default encoding to UTF-8
+sys.stdout.reconfigure(encoding='utf-8')
+sys.stderr.reconfigure(encoding='utf-8')
 
-# Initialize the camera
-cap = cv2.VideoCapture(0)
+# Function to install a package
+def install_package(package_name):
+    subprocess.check_call([sys.executable, "-m", "pip", "install", package_name])
 
-# Load the Haar Cascade for face detection
-face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+# Ensure the required packages are installed
+try:
+    import cv2
+except ImportError:
+    install_package('opencv-python')
+    import cv2
 
+try:
+    import numpy as np
+except ImportError:
+    install_package('numpy')
+    import numpy as np
 
-# Function for noise removal, color space conversion, and histogram equalization
-def preprocess_face(face):
-    # Noise removal with Gaussian Blur
-    face = cv2.GaussianBlur(face, (5, 5), 0)
-    # Histogram equalization for contrast adjustment
-    face = cv2.equalizeHist(face)
-    return face
+try:
+    import tensorflow as tf
+except ImportError:
+    install_package('tensorflow')
+    import tensorflow as tf
 
+try:
+    from tensorflow.keras import layers, models
+except ImportError:
+    install_package('tensorflow')
+    from tensorflow.keras import layers, models
 
-# Function for manual data augmentation
-def augment_data(face):
-    augmentations = []
+try:
+    from tensorflow.keras.preprocessing.image import ImageDataGenerator
+except ImportError:
+    install_package('tensorflow')
+    from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
-    # Rotation
-    rows, cols = face.shape
-    angle = np.random.uniform(-15, 15)  # Random value between -15 and 15 degrees
-    M = cv2.getRotationMatrix2D((cols / 2, rows / 2), angle, 1)
-    face = cv2.warpAffine(face, M, (cols, rows))
+try:
+    from tensorflow.keras.callbacks import TensorBoard, EarlyStopping
+except ImportError:
+    install_package('tensorflow')
+    from tensorflow.keras.callbacks import TensorBoard, EarlyStopping
 
-    # Flip
-    if np.random.choice([True, False]):
-        face = cv2.flip(face, 1)
+try:
+    from matplotlib import pyplot as plt
+except ImportError:
+    install_package('matplotlib')
+    from matplotlib import pyplot as plt
 
-    # Brightness adjustment
-    alpha = np.random.uniform(0.8, 1.2)  # Random value between 0.8 and 1.2
-    beta = np.random.randint(-30, 30)    # Random value between -30 and 30
-    face = cv2.convertScaleAbs(face, alpha=alpha, beta=beta)
+# Ensure scipy is installed and imported
+try:
+    import scipy
+except ImportError:
+    install_package('scipy')
+    import scipy
 
-    # Add noise
-    noise = np.random.normal(0, np.random.randint(10, 50), face.shape).astype(np.uint8)
-    face = cv2.add(face, noise)
+# Get the username and image paths from the command-line arguments
+username = sys.argv[-1]
+image_paths = sys.argv[1:-1]
 
-    # Translation
-    shift_x = np.random.randint(-10, 10)
-    shift_y = np.random.randint(-10, 10)
-    M = np.float32([[1, 0, shift_x], [0, 1, shift_y]])
-    face = cv2.warpAffine(face, M, (cols, rows))
+# Directory for user faces dataset
+user_faces_dir = os.path.join('C:\\Users\\Klemen\\Desktop\\paketnikInternet\\backend\\pametni-paketnik\\captured_faces', username)
+os.makedirs(user_faces_dir, exist_ok=True)
 
-    # Resize
-    scale = np.random.uniform(0.5, 1.5)
-    resized_face = cv2.resize(face, (int(cols * scale), int(rows * scale)))
-    face = cv2.resize(resized_face, (cols, rows))
+# Save the images to the user's directory after converting to grayscale
+print("Saving images to user's directory:")
+for image_path in image_paths:
+    image = cv2.imread(image_path)  # Load the image in color
+    if image is None:
+        print(f"Error loading image: {image_path}")
+        continue
+    gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)  # Convert the image to grayscale
+    new_image_path = os.path.join(user_faces_dir, os.path.basename(image_path))
+    cv2.imwrite(new_image_path, gray_image)  # Save the grayscale image
+    print(f"Saved grayscale image to: {new_image_path}")
 
-    return face
+# Verify the saved grayscale images
+print("Verifying saved grayscale images:")
+for image_path in os.listdir(user_faces_dir):
+    image = cv2.imread(os.path.join(user_faces_dir, image_path), cv2.IMREAD_GRAYSCALE)
+    if image is None:
+        print(f"Error loading image: {image_path}")
+    else:
+        print(f"Loaded image {image_path} with shape: {image.shape}")
 
+# Define the model
+def create_model(input_shape):
+    model = models.Sequential()
+    model.add(layers.Input(shape=input_shape))
+    model.add(layers.Conv2D(32, (3, 3), activation='relu'))
+    model.add(layers.MaxPooling2D((2, 2)))
+    model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+    model.add(layers.MaxPooling2D((2, 2)))
+    model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+    model.add(layers.Flatten())
+    model.add(layers.Dense(64, activation='relu'))
+    model.add(layers.Dense(1, activation='sigmoid'))  # Binary classification
+    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+    return model
 
-# Recording duration in seconds
-record_duration = 5
-# Counter for processed faces
-image_counter = 0
-# Start time of the recording
-start_time = time.time()
+# Load and preprocess data
+def load_data(user_dir, lfw_dir):
+    if not os.path.exists(lfw_dir):
+        raise FileNotFoundError(f"The specified lfw directory does not exist: {lfw_dir}")
 
-while time.time() - start_time < record_duration:
-    # Read frame from the camera
-    ret, frame = cap.read()
-    if not ret:
+    datagen = ImageDataGenerator(
+        rescale=1. / 255,
+        rotation_range=2,  # Reduced value
+        width_shift_range=0.02,  # Reduced value
+        height_shift_range=0.02,  # Reduced value
+        shear_range=0.02,  # Reduced value
+        zoom_range=0.02,  # Reduced value
+        horizontal_flip=True,
+        fill_mode='nearest'
+    )
+
+    # Use the user directory without an extra subfolder
+    user_generator = datagen.flow_from_directory(
+        os.path.dirname(user_dir),  # This points to the directory containing user folder
+        target_size=(128, 128),
+        batch_size=32,
+        class_mode='binary',
+        color_mode='grayscale',
+        classes=[os.path.basename(user_dir)]  # Specify the class name directly
+    )
+
+    lfw_generator = datagen.flow_from_directory(
+        lfw_dir,
+        target_size=(128, 128),
+        batch_size=32,
+        class_mode='binary',
+        color_mode='grayscale'
+    )
+
+    # Debug: Print shapes of first batch of images from both generators
+    try:
+        x_user, y_user = next(user_generator)
+        print(f"User images batch shape: {x_user.shape}")
+    except StopIteration:
+        print("No images found in user_generator")
+
+    x_lfw, y_lfw = next(lfw_generator)
+    print(f"LFW images batch shape: {x_lfw.shape}")
+
+    combined_generator = tf.data.Dataset.zip((tf.data.Dataset.from_generator(
+        lambda: user_generator,
+        output_signature=(
+            tf.TensorSpec(shape=(None, 128, 128, 1), dtype=tf.float32),
+            tf.TensorSpec(shape=(None,), dtype=tf.float32)
+        )
+    ).map(lambda x, y: (x, tf.ones_like(y))),
+                                              tf.data.Dataset.from_generator(
+                                                  lambda: lfw_generator,
+                                                  output_signature=(
+                                                      tf.TensorSpec(shape=(None, 128, 128, 1), dtype=tf.float32),
+                                                      tf.TensorSpec(shape=(None,), dtype=tf.float32)
+                                                  )
+                                              ).map(lambda x, y: (x, tf.zeros_like(y)))))
+
+    combined_data = combined_generator.flat_map(
+        lambda user, lfw: tf.data.Dataset.from_tensors(user).concatenate(tf.data.Dataset.from_tensors(lfw)))
+
+    return combined_data, user_generator.samples + lfw_generator.samples, user_generator.batch_size
+
+user_data_dir = os.path.join('C:\\Users\\Klemen\\Desktop\\paketnikInternet\\backend\\pametni-paketnik\\captured_faces', username)
+lfw_data_dir = 'C:\\Users\\Klemen\\pythonProject2\\lfw'  # Ensure this path is correct
+combined_data, samples, batch_size = load_data(user_data_dir, lfw_data_dir)
+
+input_shape = (128, 128, 1)
+model = create_model(input_shape)
+
+# Add TensorBoard and EarlyStopping callbacks
+tensorboard_callback = TensorBoard(log_dir='./logs', histogram_freq=1)
+early_stopping_callback = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+
+# Calculate the number of steps per epoch
+steps_per_epoch = samples // batch_size
+validation_steps = samples // batch_size
+
+# Train the model with hyperparameters
+history = model.fit(
+    combined_data.repeat(),  # Repeat the dataset to avoid running out of data
+    epochs=5,  # Increased number of epochs for better training
+    steps_per_epoch=steps_per_epoch,
+    validation_data=combined_data.repeat(),  # Repeat the validation dataset as well
+    validation_steps=validation_steps,
+    callbacks=[tensorboard_callback, early_stopping_callback]
+)
+
+# Save the model
+model_path = os.path.join('models', f'{username}_model.h5')
+model.save(model_path)
+
+# Plot the training history
+plt.plot(history.history['loss'], label='loss')
+plt.plot(history.history['val_loss'], label='val_loss')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.legend()
+plt.show()
+
+plt.plot(history.history['accuracy'], label='accuracy')
+plt.plot(history.history['val_accuracy'], label='val_accuracy')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.legend()
+plt.show()
+
+# Augmentation and display settings
+num_augmented_images = 5  # Number of augmented images to save for each dataset
+output_dir = 'augmented_images'
+os.makedirs(output_dir, exist_ok=True)
+
+# Initialize ImageDataGenerator for augmentation with reduced values
+datagen = ImageDataGenerator(
+    rotation_range=2,  # Reduced value
+    width_shift_range=0.02,  # Reduced value
+    height_shift_range=0.02,  # Reduced value
+    shear_range=0.02,  # Reduced value
+    zoom_range=0.02,  # Reduced value
+    horizontal_flip=True,
+    fill_mode='nearest'
+)
+
+# Load and augment user images
+user_images = []
+for image_file in os.listdir(user_faces_dir):
+    image_path = os.path.join(user_faces_dir, image_file)
+    image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+    if image is None:
+        print(f"Error loading image: {image_path}")
+        continue
+    image = cv2.resize(image, (128, 128))
+    user_images.append(image)
+
+user_images = np.array(user_images).reshape(-1, 128, 128, 1)
+i = 0
+for batch in datagen.flow(user_images, batch_size=1, save_to_dir=output_dir, save_prefix='user', save_format='png'):
+    i += 1
+    if i >= num_augmented_images:
         break
 
-    # Convert the image to grayscale
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+# Load and augment LFW images
+lfw_images = []
+for subdir, _, files in os.walk(lfw_data_dir):
+    for file in files:
+        image_path = os.path.join(subdir, file)
+        image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+        if image is None:
+            print(f"Error loading image: {image_path}")
+            continue
+        image = cv2.resize(image, (128, 128))
+        lfw_images.append(image)
 
-    # Detect faces
-    faces = face_cascade.detectMultiScale(gray, 1.3, 5)
-
-    # Draw rectangles around faces in the frame
-    for (x, y, w, h) in faces:
-        cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
-
-    # Display the frame
-    cv2.imshow('Frame', frame)
-
-    # Save the face if detected
-    if len(faces) > 0:
-        for (x, y, w, h) in faces:
-            face = gray[y:y + h, x:x + w]
-            preprocessed_face = preprocess_face(face)
-            face_path = f'captured_faces/face_{image_counter}_preprocessed.jpg'
-            cv2.imwrite(face_path, preprocessed_face)
-            print(f"Preprocessed image saved as {face_path}")
-
-            # Augment data
-            for _ in range(20):  # Perform augmentation 20 times
-                aug_face = augment_data(preprocessed_face)
-                aug_face_path = f'captured_faces/face_{image_counter}_aug.jpg'
-                cv2.imwrite(aug_face_path, aug_face)
-                print(f"Augmented image saved as {aug_face_path}")
-                image_counter += 1
-
-    # Exit if 'q' is pressed
-    if cv2.waitKey(1) & 0xFF == ord('q'):
+lfw_images = np.array(lfw_images).reshape(-1, 128, 128, 1)
+i = 0
+for batch in datagen.flow(lfw_images, batch_size=1, save_to_dir=output_dir, save_prefix='lfw', save_format='png'):
+    i += 1
+    if i >= num_augmented_images:
         break
 
-# Release the camera and close all windows
-cap.release()
-cv2.destroyAllWindows()
+print(f"Saved augmented images to {output_dir}")
+
+# Load augmented images for visualization
+augmented_user_images = [cv2.imread(os.path.join(output_dir, f'user_{i}.png'), cv2.IMREAD_GRAYSCALE) for i in range(num_augmented_images)]
+augmented_lfw_images = [cv2.imread(os.path.join(output_dir, f'lfw_{i}.png'), cv2.IMREAD_GRAYSCALE) for i in range(num_augmented_images)]
+
+# Display augmented images using matplotlib
+fig, axes = plt.subplots(2, num_augmented_images, figsize=(15, 6))
+fig.suptitle('Augmented Images')
+
+for i in range(num_augmented_images):
+    axes[0, i].imshow(augmented_user_images[i], cmap='gray')
+    axes[0, i].axis('off')
+    axes[0, i].set_title(f'User Image {i + 1}')
+
+    axes[1, i].imshow(augmented_lfw_images[i], cmap='gray')
+    axes[1, i].axis('off')
+    axes[1, i].set_title(f'LFW Image {i + 1}')
+
+plt.show()
